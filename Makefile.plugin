@@ -1,0 +1,11 @@
+LIB_NAME=libmoveline.so
+PLUGIN_NAME=moveline.so
+LUA_DIR =/home/willothy/projects/rust/moveline/lua
+DEPS_DIR=/home/willothy/projects/rust/moveline/lua/deps
+
+TARGET_DIR=/home/willothy/projects/rust/moveline/target/debug
+
+.PHONY: deploy
+deploy:
+	cp ${TARGET_DIR}/${LIB_NAME} ${LUA_DIR}/${PLUGIN_NAME}
+	cp ${TARGET_DIR}/deps/*.rlib ${DEPS_DIR}
