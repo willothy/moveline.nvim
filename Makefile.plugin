@@ -3,7 +3,7 @@ PLUGIN_NAME=moveline.so
 LUA_DIR =/home/willothy/projects/rust/moveline/lua
 DEPS_DIR=/home/willothy/projects/rust/moveline/lua/deps
 
-TARGET_DIR=/home/willothy/projects/rust/moveline/target/debug
+TARGET_DIR=/home/willothy/projects/rust/moveline/target/release
 
 .PHONY: deploy
 deploy:

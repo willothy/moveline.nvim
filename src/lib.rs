@@ -7,14 +7,13 @@ fn move_line_up(lua: &Lua, _: ()) -> LuaResult<()> {
 fn move_line_down(lua: &Lua, _: ()) -> LuaResult<()> {
     move_line(lua, 1)
 }
-
 fn calc_fold(lua: &Lua, line: u64, dir: i8) -> LuaResult<i64> {
     Ok(if dir > 0 {
         vim::func::foldclosedend(lua, line + dir as u64)
-            .map_err(|e| LuaError::RuntimeError(format!("{}: {}", e, line!())))? as i64
+            .map_err(|e| LuaError::RuntimeError(format!("{}: {}", e, line!())))?
     } else {
         vim::func::foldclosed(lua, line - dir.abs() as u64)
-            .map_err(|e| LuaError::RuntimeError(format!("{}: {}", e, line!())))? as i64
+            .map_err(|e| LuaError::RuntimeError(format!("{}: {}", e, line!())))?
     })
 }
 
@@ -24,7 +23,8 @@ fn indent(lua: &Lua, amount: u64, start_line: u64, end_line: Option<u64>) -> Lua
     let c_indent = count_indent(lua, start_line)?;
     let diff = amount - c_indent;
 
-    vim::cmd(lua, "silent! normal! ==")?;
+    vim::cmd(lua, "silent! normal! ==")
+        .map_err(|e| LuaError::RuntimeError(format!("{}: {}", e, line!())))?;
     let new_indent = count_indent(lua, start_line)
         .map_err(|e| LuaError::RuntimeError(format!("{}: {}", e, line!())))?;
 
@@ -95,9 +95,6 @@ fn move_line(lua: &Lua, dir: i8) -> LuaResult<()> {
     let cursor_pos = vim::api::nvim_win_get_cursor(lua, 0)
         .map_err(|e| LuaError::RuntimeError(format!("{}: {}", e, line!())))?;
     let line = cursor_pos.get(1)?;
-    log::info(lua, &format!("line: {}", line))?;
-    log::info(lua, &format!("last_line: {}", last_line))?;
-    log::info(lua, &format!("dir: {}", dir))?;
 
     if line == 1 && dir < 0 {
         return Ok(());
@@ -106,25 +103,21 @@ fn move_line(lua: &Lua, dir: i8) -> LuaResult<()> {
     }
 
     if line >= 1 && line <= last_line {
-        log::info(lua, "in range")?;
         let mut target = line;
         let fold = calc_fold(lua, line, dir)
             .map_err(|e| LuaError::RuntimeError(format!("{}: {}", e, line!())))?;
-        log::info(lua, &format!("fold: {}", fold))?;
-        log::info(lua, &format!("target: {}", target))?;
 
         if fold != -1 {
             target = fold as u64;
         }
 
         let td = td(target, dir);
-        log::info(lua, &format!("td: {}", td))?;
         let amount = calc_indent(lua, td, dir)
             .map_err(|e| LuaError::RuntimeError(format!("{}: {}", e, line!())))?;
         swap_line(lua, line, td)
             .map_err(|e| LuaError::RuntimeError(format!("{}: {}", e, line!())))?;
-        // indent(lua, amount, td, None)
-        //     .map_err(|e| LuaError::RuntimeError(format!("{}: {}", e, line!())))?;
+        indent(lua, amount, td, None)
+            .map_err(|e| LuaError::RuntimeError(format!("{}: {}", e, line!())))?;
     }
 
     Ok(())
@@ -139,14 +132,10 @@ fn td(line: u64, dir: i8) -> u64 {
 }
 
 fn swap_line(lua: &Lua, source: u64, target: u64) -> LuaResult<()> {
-    log::info(lua, &format!("source: {}", source))?;
-    log::info(lua, &format!("target: {}", target))?;
     let source_line = vim::func::getline(lua, source, None)
         .map_err(|e| LuaError::RuntimeError(format!("{}: {}", e, line!())))?;
-    log::info(lua, &format!("source_line: {:?}", source_line))?;
     let target_line = vim::func::getline(lua, target, None)
         .map_err(|e| LuaError::RuntimeError(format!("{}: {}", e, line!())))?;
-    log::info(lua, &format!("target_line: {:?}", target_line))?;
     let source_line = source_line.into_string().unwrap();
     let target_line = target_line.into_string().unwrap();
     vim::func::setline(lua, source, &target_line)
@@ -180,9 +169,7 @@ fn calc_indent(lua: &Lua, target: u64, dir: i8) -> LuaResult<u64> {
 #[mlua::lua_module]
 fn moveline(lua: &Lua) -> LuaResult<LuaTable> {
     ModuleBuilder::new(lua)
-        .with_fn("move_line_up", move_line_up)
-        .map_err(|e| LuaError::RuntimeError(format!("{}: {}", e, line!())))?
-        .with_fn("move_line_down", move_line_down)
-        .map_err(|e| LuaError::RuntimeError(format!("{}: {}", e, line!())))?
+        .with_fn("move_line_up", move_line_up)?
+        .with_fn("move_line_down", move_line_down)?
         .build()
 }
