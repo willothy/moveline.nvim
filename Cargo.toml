@@ -12,6 +12,5 @@ readme = "README.md"
 crate-type = ["cdylib"]
 
 [dependencies]
-#nvim-utils = { version = "0.1.1" }
-nvim-utils = { path = "../nvim-utils" }
+nvim-utils = { git = "https://github.com/willothy/nvim-utils", branch = "dev" }
 mlua = { version = "0.8.7", features = ["luajit", "vendored", "module"] }
