@@ -18,28 +18,6 @@ fn add_dir(num: u64, dir: i8) -> u64 {
     }
 }
 
-/// Count the indent of a line
-fn count_indent(lua: &Lua, line: u64) -> LuaResult<u64> {
-    Ok(vim::func::indent(lua, line)
-        .map_err(|e| LuaError::RuntimeError(format!("{}: {}", e, line!())))?
-        / vim::func::shiftwidth(lua)
-            .map_err(|e| LuaError::RuntimeError(format!("{}: {}", e, line!())))?)
-}
-
-/// Calculate the indent of the target line
-fn calc_indent(lua: &Lua, target: u64, dir: i8) -> LuaResult<u64> {
-    let target_count = count_indent(lua, target)
-        .map_err(|e| LuaError::RuntimeError(format!("{}: {}", e, line!())))?;
-    let next_count = count_indent(lua, add_dir(target, dir))
-        .map_err(|e| LuaError::RuntimeError(format!("{}: {}", e, line!())))?;
-
-    if target_count < next_count {
-        Ok(next_count)
-    } else {
-        Ok(target_count)
-    }
-}
-
 /// Perform the actual swapping of lines
 fn swap_line(lua: &Lua, source: u64, target: u64, cursor_col: u64) -> LuaResult<()> {
     // Get the line contents
