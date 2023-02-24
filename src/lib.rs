@@ -41,13 +41,7 @@ fn calc_indent(lua: &Lua, target: u64, dir: i8) -> LuaResult<u64> {
 }
 
 /// Perform the actual swapping of lines
-fn swap_line(
-    lua: &Lua,
-    source: u64,
-    target: u64,
-    cursor_col: u64,
-    new_indent: u64,
-) -> LuaResult<()> {
+fn swap_line(lua: &Lua, source: u64, target: u64, cursor_col: u64) -> LuaResult<()> {
     // Get the line contents
     let source_line = vim::func::getline(lua, source, None)
         .map_err(|e| LuaError::RuntimeError(format!("{}: {}", e, line!())))?
@@ -58,16 +52,7 @@ fn swap_line(
 
     // perform the swap
     vim::func::setline(lua, source, &target_line)?;
-    vim::func::setline(
-        lua,
-        target,
-        &format!(
-            "{:>indent$}{}",
-            "",
-            source_line.trim_start(),
-            indent = new_indent as usize * vim::func::shiftwidth(lua)? as usize
-        ),
-    )?;
+    vim::func::setline(lua, target, &source_line)?;
 
     // Move the cursor to the new line
     vim::api::nvim_win_set_cursor(lua, 0, (target, cursor_col))?;
@@ -97,11 +82,10 @@ fn move_line(lua: &Lua, dir: i8) -> LuaResult<()> {
     // Add direction to target
     let td = add_dir(target, dir);
     // Swap the lines
-    let amount = calc_indent(lua, td, dir)?;
-    swap_line(lua, line, td, col, amount)?;
+    swap_line(lua, line, td, col)?;
 
     // Auto-indent the line
-    //vim::api::nvim_exec(lua, "silent! normal! v=", false)?;
+    vim::api::nvim_exec(lua, "silent! normal! v=", false)?;
 
     Ok(())
 }
