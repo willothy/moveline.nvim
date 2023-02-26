@@ -1,4 +1,4 @@
 /target
 /Cargo.lock
 /Makefile.plugin
-/lua/
+/error
