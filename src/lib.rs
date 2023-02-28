@@ -1,7 +1,7 @@
 use nvim_utils::prelude::*;
 
 /// Handle folds
-fn calc_fold(lua: &Lua, line: u64, dir: i8) -> LuaResult<i64> {
+fn calc_fold(lua: &Lua, line: u64, dir: i64) -> LuaResult<i64> {
     if dir > 0 {
         vim::func::foldclosedend(lua, line + dir as u64)
     } else {
@@ -10,7 +10,10 @@ fn calc_fold(lua: &Lua, line: u64, dir: i8) -> LuaResult<i64> {
 }
 
 /// Add direction to line number
-fn add_dir(num: u64, dir: i8) -> u64 {
+fn add_dir(num: u64, mut dir: i64, count: Option<u64>) -> u64 {
+    if let Some(count) = count {
+        dir *= count as i64;
+    }
     if dir >= 0 {
         num + dir as u64
     } else {
@@ -39,7 +42,7 @@ fn swap_line(lua: &Lua, source: u64, target: u64, cursor_col: u64) -> LuaResult<
 }
 
 /// Move a line up or down
-fn move_line(lua: &Lua, dir: i8) -> LuaResult<()> {
+fn move_line(lua: &Lua, dir: i64) -> LuaResult<()> {
     // Get last line of file
     let last_line = vim::func::line(lua, "$")?;
 
@@ -57,8 +60,18 @@ fn move_line(lua: &Lua, dir: i8) -> LuaResult<()> {
     let fold = calc_fold(lua, line, dir)?;
     let target = if fold == -1 { line } else { fold as u64 };
 
+    // Allow vim count
+    let count = {
+        let count = vim::v::count(lua)?;
+        if count > 0 {
+            Some(count)
+        } else {
+            None
+        }
+    };
+
     // Add direction to target
-    let td = add_dir(target, dir);
+    let td = add_dir(target, dir, count);
     // Swap the lines
     swap_line(lua, line, td, col)?;
 
