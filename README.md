@@ -32,3 +32,6 @@ local moveline = require('moveline')
 vim.keymap.set('n', '<M-k>', moveline.move_line_up)
 vim.keymap.set('n', '<M-j>', moveline.move_line_down)
 ```
+
+As of 0.2.0, moveline functions accept counts. For example, the keybinds above, typing `5<M-k>` will move 
+the current line up 5 lines.
