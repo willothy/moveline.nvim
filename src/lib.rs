@@ -9,18 +9,6 @@ fn calc_fold(lua: &Lua, line: u64, dir: i64) -> LuaResult<i64> {
     }
 }
 
-/// Add direction to line number
-fn add_dir(num: u64, mut dir: i64, count: Option<u64>) -> u64 {
-    if let Some(count) = count {
-        dir *= count as i64;
-    }
-    if dir >= 0 {
-        num + dir as u64
-    } else {
-        num - dir.abs() as u64
-    }
-}
-
 /// Perform the actual swapping of lines
 fn swap_line(lua: &Lua, source: u64, target: u64, cursor_col: u64) -> LuaResult<()> {
     // Get the line contents
@@ -147,7 +135,11 @@ fn move_line(lua: &Lua, dir: i64) -> LuaResult<()> {
     };
 
     // Add direction to target
-    let td = add_dir(target, dir, count);
+    let td = if dir > 0 {
+        target + count.unwrap_or(1)
+    } else {
+        target - count.unwrap_or(1)
+    };
     // Swap the lines
     swap_line(lua, line, td, col)?;
 

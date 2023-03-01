@@ -2,3 +2,5 @@
 /Cargo.lock
 /Makefile.plugin
 /error
+/lua/*.so
+/lua/deps/
