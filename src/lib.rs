@@ -41,6 +41,82 @@ fn swap_line(lua: &Lua, source: u64, target: u64, cursor_col: u64) -> LuaResult<
     Ok(())
 }
 
+fn move_lines(lua: &Lua, dir: i64) -> LuaResult<()> {
+    // Get the selection start and end
+    let cursor = vim::api::nvim_win_get_cursor(lua, 0)?;
+    let mut selection_start = vim::func::line(lua, "v")? - 1;
+    let mut selection_end = cursor.get(1)?;
+    let last_line = vim::func::line(lua, "$")?;
+
+    // Select in one direction only
+    if selection_start > selection_end {
+        selection_start = std::mem::replace(&mut selection_end, selection_start);
+        selection_end += 1;
+        selection_start -= 1;
+    }
+
+    // Silently fail if we're at an edge
+    if (selection_start == 0 && dir < 0) || (selection_end == last_line && dir > 0) {
+        return Ok(());
+    }
+
+    // Allow vim count
+    let count = {
+        let count = vim::v::count(lua)?;
+        if count > 0 {
+            Some(count)
+        } else {
+            None
+        }
+    };
+
+    let (target_start, target_end) = if dir > 0 {
+        (
+            selection_start + count.unwrap_or(1),
+            selection_end + count.unwrap_or(1),
+        )
+    } else {
+        (
+            selection_start - count.unwrap_or(1),
+            selection_end - count.unwrap_or(1),
+        )
+    };
+
+    let mut lines = vim::api::nvim_buf_get_lines(lua, 0, selection_start, selection_end, true)?;
+    if dir > 0 {
+        let mut replace_lines =
+            vim::api::nvim_buf_get_lines(lua, 0, selection_end, target_end, true)?;
+        replace_lines.extend(lines.drain(..));
+        lines = replace_lines;
+        vim::api::nvim_buf_set_lines(lua, 0, selection_start, target_end, true, lines)?;
+    } else {
+        lines.extend(vim::api::nvim_buf_get_lines(
+            lua,
+            0,
+            target_start,
+            selection_start,
+            true,
+        )?);
+        vim::api::nvim_buf_set_lines(lua, 0, target_start, selection_end, true, lines)?;
+    };
+
+    let mode: String = vim::func::mode(lua)?;
+    vim::api::nvim_feedkeys(
+        lua,
+        &*format!(
+            "{}{}gg{}{}gg=gv",
+            &mode,
+            target_start + 1,
+            &mode,
+            target_end,
+        ),
+        "n",
+        false,
+    )?;
+
+    Ok(())
+}
+
 /// Move a line up or down
 fn move_line(lua: &Lua, dir: i64) -> LuaResult<()> {
     // Get last line of file
@@ -82,19 +158,35 @@ fn move_line(lua: &Lua, dir: i64) -> LuaResult<()> {
 }
 
 /// Public function to move line up
-fn move_line_up(lua: &Lua, _: ()) -> LuaResult<()> {
+fn up(lua: &Lua, _: ()) -> LuaResult<()> {
     move_line(lua, -1)
 }
 
 /// Public function to move line down
-fn move_line_down(lua: &Lua, _: ()) -> LuaResult<()> {
+fn down(lua: &Lua, _: ()) -> LuaResult<()> {
     move_line(lua, 1)
+}
+
+/// Public function to move a block up
+fn block_up(lua: &Lua, _: ()) -> LuaResult<()> {
+    move_lines(lua, -1)
+}
+
+/// Public function to move a block down
+fn block_down(lua: &Lua, _: ()) -> LuaResult<()> {
+    move_lines(lua, 1)
 }
 
 #[mlua::lua_module]
 fn moveline(lua: &Lua) -> LuaResult<LuaTable> {
     ModuleBuilder::new(lua)
-        .with_fn("move_line_up", move_line_up)?
-        .with_fn("move_line_down", move_line_down)?
+        // move_line_up and move_line_down are deprecated in favor of up, down, block_up and
+        // block_down, but they will stay for a while to avoid breaking configs
+        .with_fn("move_line_down", down)?
+        .with_fn("move_line_up", up)?
+        .with_fn("up", up)?
+        .with_fn("down", down)?
+        .with_fn("block_up", block_up)?
+        .with_fn("block_down", block_down)?
         .build()
 }

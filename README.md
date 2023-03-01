@@ -23,15 +23,17 @@ use('willothy/moveline', { run = 'make' })
 
 ## Usage
 
-Moveline does not set any keybinds. It simply exports two functions: `move_line_up`, and `move_line_down`.
+Moveline does not set any keybinds. It simply exports four functions: `up` and `down` for moving single lines, and `block_up` and `block_down` for moving visual selections.
 
 You can use these functions to set your own keybinds. Here's my setup:
 
 ```lua
 local moveline = require('moveline')
-vim.keymap.set('n', '<M-k>', moveline.move_line_up)
-vim.keymap.set('n', '<M-j>', moveline.move_line_down)
+vim.keymap.set('n', '<M-k>', moveline.up)
+vim.keymap.set('n', '<M-j>', moveline.down)
+vim.keymap.set('v', '<M-k>', moveline.block_up)
+vim.keymap.set('v', '<M-j>', moveline.block_down)
 ```
 
-As of 0.2.0, moveline functions accept counts. For example, the keybinds above, typing `5<M-k>` will move 
+Moveline functions accept counts. For example, with the keybinds above, typing `5<M-k>` will move 
 the current line up 5 lines.

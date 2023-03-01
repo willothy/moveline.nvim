@@ -1,6 +1,6 @@
 [package]
 name = "moveline"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["Will Hopkins <willothyh@gmail.com>"]
 description = "A neovim plugin to move lines up and down"
@@ -12,5 +12,5 @@ readme = "README.md"
 crate-type = ["cdylib"]
 
 [dependencies]
-nvim-utils = { version = "0.1.11" }
+nvim-utils = { version = "0.1.12" }
 mlua = { version = "0.8.7", features = ["luajit", "vendored", "module"] }
