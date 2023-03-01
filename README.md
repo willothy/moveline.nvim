@@ -2,6 +2,10 @@
 
 Moveline is a simple plugin for moving lines up and down. It's written in Rust using my library [nvim-utils](https://github.com/willothy/nvim-utils).
 
+
+https://user-images.githubusercontent.com/38540736/222247952-b61ee3bd-c4f3-4c45-813e-b82db9fdcc13.mp4
+
+
 ## Installation
 
 Moveline can be installed using any Neovim package manager that supports build commands.
