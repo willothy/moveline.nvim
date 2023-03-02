@@ -25,7 +25,6 @@ fn swap_line(lua: &Lua, source: u64, target: u64, cursor_col: u64) -> LuaResult<
 
     // Move the cursor to the new line
     vim::api::nvim_win_set_cursor(lua, 0, (target, cursor_col))?;
-
     Ok(())
 }
 
@@ -37,11 +36,13 @@ fn move_lines(lua: &Lua, dir: i64) -> LuaResult<()> {
     let last_line = vim::func::line(lua, "$")?;
 
     // Select in one direction only
-    if selection_start > selection_end {
-        selection_start = std::mem::replace(&mut selection_end, selection_start);
+    let swap = if selection_start > selection_end || selection_start == selection_end {
+        selection_start = std::mem::replace(&mut selection_end, selection_start) - 1;
         selection_end += 1;
-        selection_start -= 1;
-    }
+        true
+    } else {
+        false
+    };
 
     // Silently fail if we're at an edge
     if (selection_start == 0 && dir < 0) || (selection_end == last_line && dir > 0) {
@@ -49,25 +50,26 @@ fn move_lines(lua: &Lua, dir: i64) -> LuaResult<()> {
     }
 
     // Allow vim count
-    let count = {
+    let mut count = {
         let count = vim::v::count(lua)?;
         if count > 0 {
-            Some(count)
+            count
         } else {
-            None
+            1
         }
     };
 
+    // Calculate target location
     let (target_start, target_end) = if dir > 0 {
-        (
-            selection_start + count.unwrap_or(1),
-            selection_end + count.unwrap_or(1),
-        )
+        if selection_end + count > last_line {
+            count = last_line - selection_end;
+        }
+        (selection_start + count, selection_end + count)
     } else {
-        (
-            selection_start - count.unwrap_or(1),
-            selection_end - count.unwrap_or(1),
-        )
+        if count > selection_start {
+            count = selection_start;
+        }
+        (selection_start - count, selection_end - count)
     };
 
     let mut lines = vim::api::nvim_buf_get_lines(lua, 0, selection_start, selection_end, true)?;
@@ -94,9 +96,9 @@ fn move_lines(lua: &Lua, dir: i64) -> LuaResult<()> {
         &*format!(
             "{}{}gg{}{}gg=gv",
             &mode,
-            target_start + 1,
+            if swap { target_end } else { target_start + 1 },
             &mode,
-            target_end,
+            if swap { target_start + 1 } else { target_end },
         ),
         "n",
         false,
@@ -125,20 +127,26 @@ fn move_line(lua: &Lua, dir: i64) -> LuaResult<()> {
     let target = if fold == -1 { line } else { fold as u64 };
 
     // Allow vim count
-    let count = {
+    let mut count = {
         let count = vim::v::count(lua)?;
         if count > 0 {
-            Some(count)
+            count
         } else {
-            None
+            1
         }
     };
 
     // Add direction to target
     let td = if dir > 0 {
-        target + count.unwrap_or(1)
+        if line + count > last_line {
+            count = last_line - line + 1;
+        }
+        target + count
     } else {
-        target - count.unwrap_or(1)
+        if count > line {
+            count = line - 1;
+        }
+        target - count
     };
     // Swap the lines
     swap_line(lua, line, td, col)?;
