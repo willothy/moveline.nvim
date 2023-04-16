@@ -14,9 +14,3 @@ crate-type = ["cdylib"]
 [dependencies]
 nvim-utils = { version = "0.1.12" }
 mlua = { version = "0.8.7", features = ["luajit", "vendored", "module"] }
-
-[target.x86_64-apple-darwin]
-rustflags = ["-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup"]
-
-[target.aarch64-apple-darwin]
-rustflags = ["-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup"]
