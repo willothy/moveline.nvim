@@ -14,8 +14,8 @@ Moveline can be installed using any Neovim package manager that supports build c
 
 ```lua
 {
-    'willothy/moveline.nvim'
-    build = 'make'
+    'willothy/moveline.nvim',
+    build = 'make',
 }
 ```
 
