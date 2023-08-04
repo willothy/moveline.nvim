@@ -1,18 +1,84 @@
+use std::ffi::CString;
+
 use nvim_oxi as oxi;
 use oxi::api::ToFunction;
+use oxi::lua::ffi::{
+    lua_call, lua_getfield, lua_getglobal, lua_gettop, lua_pushinteger, lua_settop, lua_tointeger,
+};
+use oxi::lua::with_state;
 use oxi::Dictionary;
 use oxi::Function;
 use oxi::Result;
+use Direction::*;
 
-// /// Handle folds
-// fn calc_fold(lua: &Lua, line: u64, dir: i64) -> LuaResult<i64> {
-//     if dir > 0 {
-//         vim::func::foldclosedend(lua, line + dir as u64)
-//     } else {
-//         vim::func::foldclosed(lua, line - dir.abs() as u64)
-//     }
-// }
-//
+fn foldclosedend(line: isize) -> isize {
+    unsafe {
+        with_state(|l| {
+            let vim = CString::new("vim").unwrap();
+            let viml_funcs = CString::new("fn").unwrap();
+            let viml_foldclosedend = CString::new("foldclosedend").unwrap();
+            let stack_guard = lua_gettop(l);
+
+            // Get `vim.fn`
+            lua_getglobal(l, vim.as_ptr());
+            lua_getfield(l, -1, viml_funcs.as_ptr());
+            lua_getfield(l, -1, viml_foldclosedend.as_ptr());
+
+            // Argument
+            lua_pushinteger(l, line as isize);
+
+            lua_call(l, 1, 1);
+
+            // Pop the number
+            let result = lua_tointeger(l, -1);
+
+            // Clean up the stack "frame"
+            lua_settop(l, stack_guard);
+
+            result
+        })
+    }
+}
+
+fn foldclosed(line: isize) -> isize {
+    unsafe {
+        with_state(|l| {
+            let vim = CString::new("vim").unwrap();
+            let viml_funcs = CString::new("fn").unwrap();
+            let viml_foldclosed = CString::new("foldclosed").unwrap();
+            let stack_guard = lua_gettop(l);
+
+            // Get `vim.fn`
+            lua_getglobal(l, vim.as_ptr());
+            lua_getfield(l, -1, viml_funcs.as_ptr());
+            lua_getfield(l, -1, viml_foldclosed.as_ptr());
+
+            // Argument
+            lua_pushinteger(l, line as isize);
+
+            lua_call(l, 1, 1);
+
+            // Pop the number
+            let result = lua_tointeger(l, -1);
+
+            // Clean up the stack "frame"
+            lua_settop(l, stack_guard);
+
+            result
+        })
+    }
+}
+
+/// Handle folds
+fn calc_fold(line: usize, offset: isize) -> isize {
+    let line = line as isize + offset;
+    if offset > 0 {
+        foldclosedend(line)
+    } else {
+        foldclosed(line)
+    }
+}
+
 // /// Perform the actual swapping of lines
 // fn swap_line(lua: &Lua, source: u64, target: u64, cursor_col: u64) -> LuaResult<()> {
 //     // Get the line contents
@@ -116,7 +182,6 @@ pub enum Direction {
     Up,
     Down,
 }
-use Direction::*;
 
 /// Move a line up or down
 fn move_line(dir: Direction) -> Result<()> {
@@ -133,10 +198,6 @@ fn move_line(dir: Direction) -> Result<()> {
         return Ok(());
     }
 
-    // TODO: Account for folds
-    // let fold = calc_fold(lua, line, dir)?;
-    let mut target = line; // if fold == -1 { line } else { fold as u64 };
-
     // Allow vim count
     let mut count = {
         let count = oxi::api::get_vvar("count")?;
@@ -148,17 +209,24 @@ fn move_line(dir: Direction) -> Result<()> {
     };
 
     // Add direction to target
-    target = if dir == Down {
+    let mut target = if dir == Down {
         if line + count > last_line {
             count = last_line - line + 1;
         }
-        target + count
+        line + count
     } else {
         if count > line {
             count = line - 1;
         }
-        target - count
+        line - count
     };
+
+    let offset = target as isize - line as isize;
+    let fold = calc_fold(line, offset);
+
+    if fold != -1 {
+        target = fold as usize;
+    }
 
     let contents = buf.get_lines(line - 1..=line, true)?;
 
@@ -168,6 +236,7 @@ fn move_line(dir: Direction) -> Result<()> {
     win.set_cursor(target, col)?;
 
     // Auto-indent the line
+    // TODO: Use treesitter
     oxi::api::exec("silent! normal! v=", false)?;
 
     Ok(())
@@ -185,11 +254,13 @@ fn down(_: ()) -> Result<()> {
 
 /// Public function to move a block up
 fn block_up(_: ()) -> Result<()> {
+    oxi::api::err_writeln("visual selection movement not yet implemented");
     Ok(())
 }
 
 /// Public function to move a block down
 fn block_down(_: ()) -> Result<()> {
+    oxi::api::err_writeln("visual selection movement not yet implemented");
     Ok(())
 }
 
