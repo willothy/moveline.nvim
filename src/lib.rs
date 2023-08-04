@@ -1,14 +1,18 @@
+use std::borrow::Cow;
 use std::ffi::CString;
 
 use nvim_oxi as oxi;
 use oxi::api::ToFunction;
+use oxi::conversion::FromObject;
 use oxi::lua::ffi::{
-    lua_call, lua_getfield, lua_getglobal, lua_gettop, lua_pushinteger, lua_settop, lua_tointeger,
+    lua_call, lua_getfield, lua_getglobal, lua_gettop, lua_pushinteger, lua_pushstring, lua_settop,
+    lua_tointeger, lua_type, LUA_TNIL,
 };
 use oxi::lua::with_state;
-use oxi::Dictionary;
-use oxi::Function;
-use oxi::Result;
+use oxi::lua::{cstr, Poppable};
+use oxi::{Dictionary, Error};
+use oxi::{Function, ObjectKind};
+use oxi::{Object, Result};
 use Direction::*;
 
 fn foldclosedend(line: isize) -> isize {
@@ -183,6 +187,26 @@ pub enum Direction {
     Down,
 }
 
+fn require(module: &str) -> Result<Dictionary> {
+    let module = CString::new(module).unwrap();
+    unsafe {
+        with_state(|l| {
+            // aowidoaiw
+            lua_getglobal(l, cstr!("require"));
+            lua_pushstring(l, module.as_ptr());
+            lua_call(l, 1, 1);
+            if lua_type(l, -1) == LUA_TNIL {
+                Err(Error::Api(oxi::api::Error::Other(format!(
+                    "module '{}' not found",
+                    module.to_str().unwrap()
+                ))))
+            } else {
+                Ok(Dictionary::pop(l)?)
+            }
+        })
+    }
+}
+
 /// Move a line up or down
 fn move_line(dir: Direction) -> Result<()> {
     // Get last line of file
@@ -228,16 +252,105 @@ fn move_line(dir: Direction) -> Result<()> {
         target = fold as usize;
     }
 
-    let contents = buf.get_lines(line - 1..=line, true)?;
+    let mut contents = buf
+        .get_lines(line - 1..=line, true)?
+        .map(|s| {
+            let cow = s.to_string_lossy();
+            cow.to_string()
+        })
+        .collect::<Vec<String>>();
 
     buf.set_lines::<oxi::String, _, _>(line - 1..=line, true, [])?;
-    buf.set_lines::<oxi::String, _, _>(target - 1..target, true, contents)?;
+    buf.set_lines::<oxi::String, _, _>(
+        target - 1..target,
+        true,
+        contents
+            .clone()
+            .into_iter()
+            .map(|s| oxi::String::from_bytes(s.as_bytes())),
+    )?;
 
     win.set_cursor(target, col)?;
 
     // Auto-indent the line
-    // TODO: Use treesitter
-    oxi::api::exec("silent! normal! v=", false)?;
+    let ts_indent = require("nvim-treesitter.indent")?;
+    let get_indent: Function<_, isize> = ts_indent
+        .get("get_indent")
+        .map(Object::to_owned)
+        .map(Function::from_object)
+        .map(std::result::Result::ok)
+        .flatten()
+        .ok_or(Error::Api(oxi::api::Error::Other(
+            "nvim-treesitter not installed".to_owned(),
+        )))?;
+
+    let indent = get_indent.call(target)?;
+    let initial = get_indent.call(line)?;
+
+    if indent == -1 {
+        let filetype = buf
+            .get_option("filetype")
+            .ok()
+            .map(String::from_object)
+            .map(std::result::Result::ok)
+            .flatten()
+            .unwrap_or("<unknown>".to_owned());
+
+        oxi::api::err_writeln(&*format!(
+            "treesitter parser for {} not installed",
+            filetype
+        ));
+    } else {
+        let expandtab = buf
+            .get_option("expandtab")
+            .ok()
+            .map(bool::from_object)
+            .map(std::result::Result::ok)
+            .flatten()
+            .unwrap_or(false);
+
+        let tabstop = buf
+            .get_option("tabstop")
+            .ok()
+            .map(i64::from_object)
+            .map(std::result::Result::ok)
+            .flatten()
+            .unwrap_or(4);
+
+        let mut indent_str = if expandtab {
+            " ".repeat(indent as usize)
+        } else {
+            "\t".repeat(indent as usize / tabstop as usize)
+                + &" ".repeat(indent as usize % tabstop as usize)
+        };
+
+        for line in &mut contents {
+            let trimmed = line.trim_start();
+            *line = if trimmed.is_empty() {
+                String::new()
+            } else {
+                indent_str.push_str(&trimmed);
+                let indent = indent_str.clone();
+                indent
+            };
+        }
+
+        buf.set_lines::<oxi::String, _, _>(
+            target - 1..=target,
+            true,
+            contents
+                .into_iter()
+                .map(|s| oxi::String::from_bytes(s.as_bytes())),
+        )?;
+
+        let new_col = if initial != indent {
+            col - (initial - indent) as usize
+        } else {
+            col
+        };
+
+        win.set_cursor(target, new_col)?;
+    }
 
     Ok(())
 }
