@@ -22,20 +22,19 @@ fn foldclosedend(line: isize) -> isize {
             let viml_foldclosedend = CString::new("foldclosedend").unwrap();
             let stack_guard = lua_gettop(l);
 
-            // Get `vim.fn`
+            // Get `vim.fn.foldclosedend`
             lua_getglobal(l, vim.as_ptr());
             lua_getfield(l, -1, viml_funcs.as_ptr());
             lua_getfield(l, -1, viml_foldclosedend.as_ptr());
 
-            // Argument
+            // Call it
             lua_pushinteger(l, line as isize);
-
             lua_call(l, 1, 1);
 
-            // Pop the number
+            // Pop the result
             let result = lua_tointeger(l, -1);
 
-            // Clean up the stack "frame"
+            // Clean up the stack
             lua_settop(l, stack_guard);
 
             result
@@ -51,20 +50,19 @@ fn foldclosed(line: isize) -> isize {
             let viml_foldclosed = CString::new("foldclosed").unwrap();
             let stack_guard = lua_gettop(l);
 
-            // Get `vim.fn`
+            // Get `vim.fn.foldclosed`
             lua_getglobal(l, vim.as_ptr());
             lua_getfield(l, -1, viml_funcs.as_ptr());
             lua_getfield(l, -1, viml_foldclosed.as_ptr());
 
-            // Argument
+            // Call it
             lua_pushinteger(l, line as isize);
-
             lua_call(l, 1, 1);
 
-            // Pop the number
+            // Pop the result
             let result = lua_tointeger(l, -1);
 
-            // Clean up the stack "frame"
+            // Clean up the stack
             lua_settop(l, stack_guard);
 
             result
@@ -161,18 +159,6 @@ fn move_line(dir: Direction) -> Result<()> {
         })
         .collect::<Vec<String>>();
 
-    buf.set_lines::<oxi::String, _, _>(line - 1..=line, true, [])?;
-    buf.set_lines::<oxi::String, _, _>(
-        target - 1..target,
-        true,
-        contents
-            .clone()
-            .into_iter()
-            .map(|s| oxi::String::from_bytes(s.as_bytes())),
-    )?;
-
-    win.set_cursor(target, col)?;
-
     // Auto-indent the line
     let ts_indent = require("nvim-treesitter.indent")?;
     let get_indent: Function<_, isize> = ts_indent
@@ -185,8 +171,18 @@ fn move_line(dir: Direction) -> Result<()> {
             "nvim-treesitter not installed".to_owned(),
         )))?;
 
-    let indent = get_indent.call(target)?;
     let initial = get_indent.call(line)?;
+    buf.set_lines::<oxi::String, _, _>(line - 1..=line, true, [])?;
+    buf.set_lines::<oxi::String, _, _>(
+        target - 1..target,
+        true,
+        contents
+            .clone()
+            .into_iter()
+            .map(|s| oxi::String::from_bytes(s.as_bytes())),
+    )?;
+
+    let indent = get_indent.call(target)?;
 
     if indent == -1 {
         let filetype = buf
@@ -218,20 +214,20 @@ fn move_line(dir: Direction) -> Result<()> {
             .flatten()
             .unwrap_or(4);
 
-        let mut indent_str = if expandtab {
+        let indent_str = if expandtab {
             " ".repeat(indent as usize)
         } else {
             "\t".repeat(indent as usize / tabstop as usize)
                 + &" ".repeat(indent as usize % tabstop as usize)
         };
 
-        for line in &mut contents {
-            let trimmed = line.trim_start();
-            *line = if trimmed.is_empty() {
+        for line_str in &mut contents.iter_mut() {
+            let trimmed = line_str.trim_start();
+            *line_str = if trimmed.is_empty() {
                 String::new()
             } else {
-                indent_str.push_str(&trimmed);
-                let indent = indent_str.clone();
+                let mut indent = indent_str.clone();
+                indent.push_str(&trimmed);
                 indent
             };
         }
@@ -244,13 +240,8 @@ fn move_line(dir: Direction) -> Result<()> {
                 .map(|s| oxi::String::from_bytes(s.as_bytes())),
         )?;
 
-        let new_col = if initial != indent {
-            col - (initial - indent) as usize
-        } else {
-            col
-        };
-
-        win.set_cursor(target, new_col)?;
+        let indent_diff = indent - initial;
+        win.set_cursor(target, (col as isize + indent_diff) as usize)?;
     }
 
     Ok(())
