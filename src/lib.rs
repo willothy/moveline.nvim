@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::ffi::CString;
 
 use nvim_oxi as oxi;
@@ -10,8 +9,8 @@ use oxi::lua::ffi::{
 };
 use oxi::lua::with_state;
 use oxi::lua::{cstr, Poppable};
+use oxi::Function;
 use oxi::{Dictionary, Error};
-use oxi::{Function, ObjectKind};
 use oxi::{Object, Result};
 use Direction::*;
 
