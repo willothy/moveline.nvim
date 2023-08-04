@@ -82,104 +82,6 @@ fn calc_fold(line: usize, offset: isize) -> isize {
     }
 }
 
-// /// Perform the actual swapping of lines
-// fn swap_line(lua: &Lua, source: u64, target: u64, cursor_col: u64) -> LuaResult<()> {
-//     // Get the line contents
-//     let source_line = vim::func::getline(lua, source, None)
-//         .map_err(|e| LuaError::RuntimeError(format!("{}: {}", e, line!())))?
-//         .into_string()?;
-//     let target_line = vim::func::getline(lua, target, None)
-//         .map_err(|e| LuaError::RuntimeError(format!("{}: {}", e, line!())))?
-//         .into_string()?;
-//
-//     // perform the swap
-//     vim::func::setline(lua, source, &target_line)?;
-//     vim::func::setline(lua, target, &source_line)?;
-//
-//     // Move the cursor to the new line
-//     vim::api::nvim_win_set_cursor(lua, 0, (target, cursor_col))?;
-//     Ok(())
-// }
-//
-// fn move_lines(lua: &Lua, dir: i64) -> LuaResult<()> {
-//     // Get the selection start and end
-//     let cursor = vim::api::nvim_win_get_cursor(lua, 0)?;
-//     let mut selection_start = vim::func::line(lua, "v")? - 1;
-//     let mut selection_end = cursor.get(1)?;
-//     let last_line = vim::func::line(lua, "$")?;
-//
-//     // Select in one direction only
-//     let swap = if selection_start > selection_end || selection_start == selection_end {
-//         selection_start = std::mem::replace(&mut selection_end, selection_start) - 1;
-//         selection_end += 1;
-//         true
-//     } else {
-//         false
-//     };
-//
-//     // Silently fail if we're at an edge
-//     if (selection_start == 0 && dir < 0) || (selection_end == last_line && dir > 0) {
-//         return Ok(());
-//     }
-//
-//     // Allow vim count
-//     let mut count = {
-//         let count = vim::v::count(lua)?;
-//         if count > 0 {
-//             count
-//         } else {
-//             1
-//         }
-//     };
-//
-//     // Calculate target location
-//     let (target_start, target_end) = if dir > 0 {
-//         if selection_end + count > last_line {
-//             count = last_line - selection_end;
-//         }
-//         (selection_start + count, selection_end + count)
-//     } else {
-//         if count > selection_start {
-//             count = selection_start;
-//         }
-//         (selection_start - count, selection_end - count)
-//     };
-//
-//     let mut lines = vim::api::nvim_buf_get_lines(lua, 0, selection_start, selection_end, true)?;
-//     if dir > 0 {
-//         let mut replace_lines =
-//             vim::api::nvim_buf_get_lines(lua, 0, selection_end, target_end, true)?;
-//         replace_lines.extend(lines.drain(..));
-//         lines = replace_lines;
-//         vim::api::nvim_buf_set_lines(lua, 0, selection_start, target_end, true, lines)?;
-//     } else {
-//         lines.extend(vim::api::nvim_buf_get_lines(
-//             lua,
-//             0,
-//             target_start,
-//             selection_start,
-//             true,
-//         )?);
-//         vim::api::nvim_buf_set_lines(lua, 0, target_start, selection_end, true, lines)?;
-//     };
-//
-//     let mode: String = vim::func::mode(lua)?;
-//     vim::api::nvim_feedkeys(
-//         lua,
-//         &*format!(
-//             "{}{}gg{}{}gg=gv",
-//             &mode,
-//             if swap { target_end } else { target_start + 1 },
-//             &mode,
-//             if swap { target_start + 1 } else { target_end },
-//         ),
-//         "n",
-//         false,
-//     )?;
-//
-//     Ok(())
-// }
-
 #[derive(Debug, PartialEq)]
 pub enum Direction {
     Up,
@@ -208,8 +110,8 @@ fn require(module: &str) -> Result<Dictionary> {
 
 /// Move a line up or down
 fn move_line(dir: Direction) -> Result<()> {
-    // Get last line of file
     let mut buf = oxi::api::Buffer::current();
+    // Get last line of file
     let last_line = buf.line_count()?;
 
     // Get current cursor position
@@ -366,14 +268,16 @@ fn down(_: ()) -> Result<()> {
 
 /// Public function to move a block up
 fn block_up(_: ()) -> Result<()> {
-    oxi::api::err_writeln("visual selection movement not yet implemented");
-    Ok(())
+    return Err(Error::Api(oxi::api::Error::Other(
+        "Not implemented".to_owned(),
+    )));
 }
 
 /// Public function to move a block down
 fn block_down(_: ()) -> Result<()> {
-    oxi::api::err_writeln("visual selection movement not yet implemented");
-    Ok(())
+    return Err(Error::Api(oxi::api::Error::Other(
+        "Not implemented".to_owned(),
+    )));
 }
 
 #[oxi::module]
