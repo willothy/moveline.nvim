@@ -12,4 +12,4 @@ readme = "README.md"
 crate-type = ["cdylib"]
 
 [dependencies]
-nvim-oxi = { version = "0.3.0", features = ["neovim-nightly", "libuv", "miniserde"] }
+nvim-oxi = { version = "0.3.0", features = ["neovim-nightly"] }
