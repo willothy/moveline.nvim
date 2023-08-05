@@ -4,8 +4,8 @@ use nvim_oxi as oxi;
 use oxi::api::ToFunction;
 use oxi::conversion::FromObject;
 use oxi::lua::ffi::{
-    lua_call, lua_getfield, lua_getglobal, lua_gettop, lua_pushinteger, lua_pushstring, lua_settop,
-    lua_tointeger, lua_type, LUA_TNIL,
+    lua_State, lua_call, lua_getfield, lua_getglobal, lua_gettop, lua_pushstring, lua_settop,
+    lua_type, LUA_TNIL,
 };
 use oxi::lua::with_state;
 use oxi::lua::{cstr, Poppable};
@@ -14,64 +14,54 @@ use oxi::{Dictionary, Error};
 use oxi::{Object, Result};
 use Direction::*;
 
-fn foldclosedend(line: isize) -> isize {
+pub struct StackGuard {
+    guard: i32,
+    state: *mut lua_State,
+}
+
+impl StackGuard {
+    pub fn new() -> Self {
+        unsafe {
+            with_state(|l| Self {
+                guard: lua_gettop(l),
+                state: l,
+            })
+        }
+    }
+}
+
+impl Drop for StackGuard {
+    fn drop(&mut self) {
+        unsafe { lua_settop(self.state, self.guard) }
+    }
+}
+
+fn viml_fn<A, R>(name: &str) -> Option<Function<A, R>> {
+    let name = CString::new(name).unwrap();
     unsafe {
         with_state(|l| {
-            let vim = CString::new("vim").unwrap();
-            let viml_funcs = CString::new("fn").unwrap();
-            let viml_foldclosedend = CString::new("foldclosedend").unwrap();
-            let stack_guard = lua_gettop(l);
-
-            // Get `vim.fn.foldclosedend`
-            lua_getglobal(l, vim.as_ptr());
-            lua_getfield(l, -1, viml_funcs.as_ptr());
-            lua_getfield(l, -1, viml_foldclosedend.as_ptr());
-
-            // Call it
-            lua_pushinteger(l, line as isize);
-            lua_call(l, 1, 1);
-
-            // Pop the result
-            let result = lua_tointeger(l, -1);
-
-            // Clean up the stack
-            lua_settop(l, stack_guard);
-
-            result
+            lua_getglobal(l, cstr!("vim"));
+            lua_getfield(l, -1, cstr!("fn"));
+            lua_getfield(l, -1, name.as_ptr());
+            Function::pop(l).ok()
         })
     }
 }
 
-fn foldclosed(line: isize) -> isize {
-    unsafe {
-        with_state(|l| {
-            let vim = CString::new("vim").unwrap();
-            let viml_funcs = CString::new("fn").unwrap();
-            let viml_foldclosed = CString::new("foldclosed").unwrap();
-            let stack_guard = lua_gettop(l);
+fn foldclosedend(line: isize) -> Option<usize> {
+    let _ = StackGuard::new();
 
-            // Get `vim.fn.foldclosed`
-            lua_getglobal(l, vim.as_ptr());
-            lua_getfield(l, -1, viml_funcs.as_ptr());
-            lua_getfield(l, -1, viml_foldclosed.as_ptr());
+    viml_fn("foldclosedend")?.call(line).ok()
+}
 
-            // Call it
-            lua_pushinteger(l, line as isize);
-            lua_call(l, 1, 1);
+fn foldclosed(line: isize) -> Option<usize> {
+    let _ = StackGuard::new();
 
-            // Pop the result
-            let result = lua_tointeger(l, -1);
-
-            // Clean up the stack
-            lua_settop(l, stack_guard);
-
-            result
-        })
-    }
+    viml_fn("foldclosed")?.call(line).ok()
 }
 
 /// Handle folds
-fn calc_fold(line: usize, offset: isize) -> isize {
+fn calc_fold(line: usize, offset: isize) -> Option<usize> {
     let line = line as isize + offset;
     if offset > 0 {
         foldclosedend(line)
@@ -145,9 +135,8 @@ fn move_line(dir: Direction) -> Result<()> {
     };
 
     let offset = target as isize - line as isize;
-    let fold = calc_fold(line, offset);
 
-    if fold != -1 {
+    if let Some(fold) = calc_fold(line, offset) {
         target = fold as usize;
     }
 
