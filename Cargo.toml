@@ -12,5 +12,4 @@ readme = "README.md"
 crate-type = ["cdylib"]
 
 [dependencies]
-nvim-utils = { version = "0.1.12" }
-mlua = { version = "0.8.7", features = ["luajit", "vendored", "module"] }
+nvim-oxi = { version = "0.3.0", features = ["neovim-nightly"] }
