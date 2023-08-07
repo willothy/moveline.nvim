@@ -111,18 +111,7 @@ pub fn move_line(dir: Direction) -> Result<()> {
     let indent = get_indent.call(target)?;
 
     if indent == -1 {
-        let filetype = buf
-            .get_option("filetype")
-            .ok()
-            .map(String::from_object)
-            .map(std::result::Result::ok)
-            .flatten()
-            .unwrap_or("<unknown>".to_owned());
-
-        oxi::api::err_writeln(&*format!(
-            "treesitter parser for {} not installed",
-            filetype
-        ));
+        win.set_cursor(target, col)?;
     } else {
         let expandtab = buf
             .get_option("expandtab")
