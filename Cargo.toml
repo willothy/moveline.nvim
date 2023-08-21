@@ -13,4 +13,4 @@ crate-type = ["cdylib"]
 
 [dependencies]
 nvim-utils = { version = "0.1.12" }
-mlua = { version = "0.8.7", features = ["luajit", "vendored", "module"] }
+mlua = { version = "0.9.0", features = ["luajit", "vendored", "module"] }
